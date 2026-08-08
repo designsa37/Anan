@@ -1,0 +1,237 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>WORKOUT AI — ELITE TRACKING</title>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow/tfjs@4.15.0"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@tensorflow-models/pose-detection@2.1.3"></script>
+    <style>
+        *{margin:0;padding:0;box-sizing:border-box;font-family:'Inter',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased;}
+        :root{--prime:#10b981;--glow:#34d399;--elite:#8b5cf6;--dark:#020617;--panel:rgba(15,23,42,0.94);--text:#f8fafc;--muted:#94a3b8;--warn:#f59e0b;--bad:#ef4444;--bone:#22d3ee;--joint:#fbbf24;--smooth:all 0.2s ease;}
+        html,body{height:100%;width:100%;background:radial-gradient(circle at 10% 0%,#064e3b 0%,#020617 50%,#000 100%);overflow:hidden;}
+        .app{width:100%;height:100%;display:flex;flex-direction:column;padding:18px 16px;gap:14px;position:relative;}
+        header{text-align:center;animation:rise 0.8s ease;}
+        @keyframes rise{from{opacity:0;transform:translateY(20px);}}
+        h1{font-size:clamp(42px,11vw,64px);font-weight:900;background:linear-gradient(90deg,var(--prime),var(--elite),var(--prime));-webkit-background-clip:text;color:transparent;}
+        .tag{color:var(--muted);font-size:clamp(14px,4vw,16px);margin-top:4px;}
+        .page{display:none;flex-direction:column;gap:14px;flex:1;overflow-y:auto;padding-bottom:20px;position:relative;z-index:1;}
+        .page.active{display:flex;animation:fadeIn 0.2s ease;}
+        @keyframes fadeIn{from{opacity:0;transform:translateY(5px);}}
+        .btn{padding:14px 18px;border-radius:16px;border:1px solid var(--prime);background:rgba(16,185,129,0.1);color:var(--prime);font-weight:600;font-size:16px;text-align:center;cursor:pointer;transition:var(--smooth);width:100%;position:relative;z-index:9999;pointer-events:auto !important;user-select:none;-webkit-tap-highlight-color:transparent;touch-action:manipulation;}
+        .btn:active{transform:scale(0.97);}
+        .btn.active{background:var(--prime);color:white;box-shadow:0 0 20px rgba(16,185,129,0.35);}
+        .btn-main{background:linear-gradient(135deg,var(--prime),var(--glow));border:none;color:white;}
+        .btn-back{background:transparent;border:1px solid var(--muted);color:var(--muted);align-self:flex-start;max-width:120px;}
+        .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px;}
+        .full{grid-column:1/-1;}
+        .inp{padding:12px 16px;border-radius:14px;border:1px solid rgba(16,185,129,0.3);background:rgba(15,23,42,0.7);color:white;font-size:16px;outline:none;position:relative;z-index:9999;}
+        .cam-wrap{position:relative;border-radius:18px;overflow:hidden;border:2px solid var(--prime);box-shadow:0 0 35px rgba(16,185,129,0.25);flex:1;min-height:280px;background:#050505;}
+        video{width:100%;height:100%;object-fit:cover;transform:scaleX(-1);position:absolute;top:0;left:0;z-index:1;}
+        #skeleton{position:absolute;top:0;left:0;width:100%;height:100%;transform:scaleX(-1);z-index:2;pointer-events:none;}
+        .overlay{position:absolute;bottom:0;left:0;right:0;padding:16px;background:linear-gradient(transparent,rgba(0,0,0,0.9));z-index:10;pointer-events:none;}
+        .status{font-weight:700;font-size:19px;margin-bottom:6px;}
+        .good{color:var(--prime);} .warn{color:var(--warn);} .fix{color:var(--bad);} .elite{color:var(--elite);}
+        .counter{position:absolute;top:12px;right:12px;background:rgba(0,0,0,0.75);border:1px solid var(--bone);border-radius:12px;padding:10px 16px;text-align:center;z-index:10;}
+        .rep-num{font-size:36px;font-weight:900;color:var(--bone);line-height:1;}
+        .feedback{margin-top:8px;padding:10px;background:rgba(0,0,0,0.4);border-radius:10px;font-size:14px;line-height:1.5;}
+        .custom-list{background:var(--panel);border-radius:16px;padding:12px;border:1px solid rgba(16,185,129,0.15);}
+        .custom-item{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05);}
+        .btn-del{border-color:var(--bad);color:var(--bad);padding:8px 12px;max-width:60px;}
+    </style>
+</head>
+<body>
+<div class="app">
+<div class="page active" id="p1">
+    <header><h1>WORKOUT AI</h1><p class="tag">🎯 ELITE TRACKING — NO MISSED REPS</p></header>
+    <h3 style="color:var(--text);margin-bottom:8px;">Your Goal</h3>
+    <div class="grid" id="goalGroup">
+        <button class="btn" data-val="Lose Weight">🔥 Lose Weight</button>
+        <button class="btn active" data-val="Build Muscle">💪 Build Muscle</button>
+        <button class="btn" data-val="Tone & Shape">✨ Tone & Shape</button>
+        <button class="btn" data-val="Endurance">⚡ Endurance</button>
+    </div>
+    <h3 style="color:var(--text);margin:16px 0 8px;">Difficulty</h3>
+    <div class="grid" id="levelGroup">
+        <button class="btn" data-val="Easy">🟢 Easy</button>
+        <button class="btn active" data-val="Medium">🟡 Medium</button>
+        <button class="btn" data-val="Hard">🔴 Hard</button>
+        <button class="btn" data-val="Ultimate">⚡ ULTIMATE</button>
+    </div>
+    <div class="grid" style="margin-top:8px;">
+        <button class="btn" id="btnBody">🎯 Body Part</button>
+        <button class="btn" id="btnCustom">✏️ Custom</button>
+    </div>
+</div>
+<div class="page" id="p2">
+    <button class="btn btn-back" id="btnBack1">← Back</button>
+    <h3 style="color:var(--text);margin-bottom:8px;">What to train?</h3>
+    <div class="grid" id="targetGroup">
+        <button class="btn active" data-val="Full Body">💪 Full Body</button>
+        <button class="btn" data-val="Upper Body">🦾 Upper</button>
+        <button class="btn" data-val="Lower Body">🦵 Lower</button>
+        <button class="btn" data-val="Core & Abs">🧱 Core</button>
+    </div>
+    <button class="btn btn-main full" id="btnRandom">🎲 RANDOM PLAN</button>
+    <button class="btn btn-main full" id="btnStart">▶️ START WORKOUT</button>
+</div>
+<div class="page" id="p3">
+    <button class="btn btn-back" id="btnBack2">← Back</button>
+    <h3 style="color:var(--text);">✏️ Custom Exercise</h3>
+    <input type="text" class="inp" id="exNameInp" placeholder="Exercise name">
+    <div class="grid"><input type="text" class="inp" id="exSetInp" placeholder="Sets"><input type="text" class="inp" id="exRepInp" placeholder="Reps"></div>
+    <button class="btn" id="btnAdd">➕ ADD</button>
+    <div class="custom-list" id="customList"></div>
+    <button class="btn btn-main full" id="btnUseCustom">✅ START</button>
+</div>
+<div class="page" id="p4">
+    <button class="btn btn-back" id="btnBack3">← END</button>
+    <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:8px;">
+        <div><div style="font-size:22px;font-weight:700;color:var(--prime);" id="exName">Ready</div><div style="font-size:14px;color:var(--muted);" id="exInfo"></div></div>
+        <div style="font-size:24px;font-weight:800;color:var(--prime);" id="timer">00:00</div>
+    </div>
+    <div class="cam-wrap">
+        <video id="cam" autoplay playsinline muted></video>
+        <canvas id="skeleton"></canvas>
+        <div class="counter"><div class="rep-num" id="repCount">0</div><div style="font-size:11px;color:var(--muted);margin-top:2px;">REPS</div></div>
+        <div class="overlay">
+            <div class="status good" id="formStatus">✅ POSITION YOURSELF — FULL BODY IN VIEW</div>
+            <div class="feedback" id="feedback">Feet shoulder-width apart, face the camera</div>
+        </div>
+    </div>
+    <div class="grid">
+        <button class="btn" id="btnPrev">← PREV</button>
+        <button class="btn" id="btnSkip">NEXT →</button>
+    </div>
+</div>
+</div>
+
+<script>
+let goal='Build Muscle', level='Medium', target='Full Body', exList=[], exIndex=0, reps=0, timer=0, timerInt;
+let customList=[], detector=null, stream=null, state='up', lastCount=0;
+
+const MOTIVATION = [
+  "🔥 That’s exactly how you do it!", "💪 Strong rep — building real power!",
+  "⚡ Perfect control — elite standard!", "🚀 You’re improving every single rep!",
+  "🏆 Champion form right there!"
+];
+
+const EXERCISES = {
+    'Deep Squat': {
+        down: 95, up: 165,
+        tip: 'Feet shoulder-width, sit until thighs are parallel or lower',
+        ok: 'Perfect depth — powerful push back up!',
+        fix: 'Keep chest up, do not round your back'
+    },
+    'Push-Up': {
+        down: 80, up: 160,
+        tip: 'Body straight from head to heels, lower chest to floor',
+        ok: 'Great range of motion — solid rep!',
+        fix: 'Elbows at 45°, not flared out wide'
+    }
+};
+const LIBRARY={
+    'Build Muscle':{'Full Body':[{name:'Deep Squat',sets:'4×12'},{name:'Push-Up',sets:'4×10'}]}
+};
+['Lose Weight','Tone & Shape','Endurance'].forEach(g=>LIBRARY[g]=LIBRARY['Build Muscle']);
+['Upper Body','Lower Body','Core & Abs'].forEach(p=>Object.keys(LIBRARY).forEach(g=>LIBRARY[g][p]=LIBRARY[g]['Full Body']));
+
+function nextPage(n){document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));document.getElementById(`p${n}`).classList.add('active');}
+function makeRandomWorkout(){exList=[...LIBRARY[goal][target]];alert(`✅ ${exList.length} exercises loaded`);}
+function addCustomEx(){let n=document.getElementById('exNameInp').value.trim();if(!n)return;let s=document.getElementById('exSetInp').value||'3',r=document.getElementById('exRepInp').value||'12';customList.push({name:n,sets:`${s}×${r}`});updateCustomUI();document.getElementById('exNameInp').value='';}
+function updateCustomUI(){document.getElementById('customList').innerHTML=customList.map((e,i)=>`<div class="custom-item"><div><strong>${e.name}</strong><br><small>${e.sets}</small></div><button class="btn btn-del" data-i="${i}">✕</button></div>`).join('');document.querySelectorAll('.btn-del').forEach(b=>b.onclick=()=>{customList.splice(b.dataset.i,1);updateCustomUI();});}
+function useCustomWorkout(){if(!customList.length)return;exList=[...customList];customList=[];startWorkout();}
+function showEx(){let e=exList[exIndex],d=EXERCISES[e.name]||EXERCISES['Deep Squat'];document.getElementById('exName').textContent=e.name;document.getElementById('exInfo').textContent=e.sets;document.getElementById('feedback').textContent=d.tip;reps=0;document.getElementById('repCount').textContent=0;state='up';lastCount=0;}
+function nextEx(){exIndex=(exIndex+1)%exList.length;showEx();}
+function prevEx(){exIndex=(exIndex-1+exList.length)%exList.length;showEx();}
+function startTimer(){clearInterval(timerInt);timer=0;timerInt=setInterval(()=>{let m=Math.floor(timer/60).toString().padStart(2,'0');let s=(timer%60).toString().padStart(2,'0');document.getElementById('timer').textContent=`${m}:${s}`;},1000);}
+
+async function initAI(){
+    try{
+        await tf.setBackend('webgl'); await tf.ready();
+        detector = await poseDetection.createDetector(
+            poseDetection.SupportedModels.MoveNet,
+            {modelType: poseDetection.movenet.modelType.SINGLEPOSE_THUNDER}
+        );
+        document.getElementById('formStatus').textContent='✅ HIGH-PRECISION AI READY';
+        startLoop();
+    }catch(err){document.getElementById('formStatus').textContent='⚠️ Restarting...';setTimeout(initAI,1500);}
+}
+
+async function startLoop(){
+    if(!detector||!stream)return requestAnimationFrame(startLoop);
+    const poses=await detector.estimatePoses(cam,{flipHorizontal:false});
+    const ctx=skeleton.getContext('2d');
+    skeleton.width=cam.videoWidth; skeleton.height=cam.videoHeight;
+    ctx.clearRect(0,0,skeleton.width,skeleton.height);
+    if(poses.length){
+        const p=poses[0];
+        const lines=[[5,6],[5,7],[7,9],[6,8],[8,10],[11,13],[13,15],[12,14],[14,16],[5,11],[6,12]];
+        ctx.strokeStyle='#22d3ee'; ctx.lineWidth=4;
+        lines.forEach(([a,b])=>{let k1=p.keypoints[a],k2=p.keypoints[b];if(k1.score>0.5&&k2.score>0.5){ctx.beginPath();ctx.moveTo(k1.x,k1.y);ctx.lineTo(k2.x,k2.y);ctx.stroke();}});
+        ctx.fillStyle='#fbbf24';
+        p.keypoints.forEach(k=>{if(k.score>0.5){ctx.beginPath();ctx.arc(k.x,k.y,7,0,Math.PI*2);ctx.fill();}});
+        check(p);
+    }
+    requestAnimationFrame(startLoop);
+}
+
+function angle(a,b,c){if(!a||!b||!c)return 0;return Math.abs(Math.atan2(a.y-b.y,a.x-b.x)-Math.atan2(c.y-b.y,c.x-b.x))*180/Math.PI;}
+function check(pose){
+    const h=pose.keypoints[11],k=pose.keypoints[13],a=pose.keypoints[15],sh=pose.keypoints[5];
+    if(!h||!k||!a||!sh)return;
+    const e=exList[exIndex],cfg=EXERCISES[e.name]||EXERCISES['Deep Squat'];
+    const kAng=angle(h,k,a),bAng=angle(sh,h,k);
+
+    if(state==='up'&&kAng<cfg.down){
+        state='down';
+        document.getElementById('formStatus').className='status warn';
+        document.getElementById('formStatus').textContent='⬇️ Lowering...';
+        if(bAng<150)document.getElementById('feedback').textContent='⚠️ Keep your back straight!';
+    }
+    if(state==='down'&&kAng>cfg.up){
+        state='up';
+        if(reps===lastCount)return;
+        lastCount=reps; reps++;
+        document.getElementById('repCount').textContent=reps;
+        const mot=MOTIVATION[Math.floor(Math.random()*MOTIVATION.length)];
+        if(bAng>160){
+            document.getElementById('formStatus').className='status elite';
+            document.getElementById('formStatus').textContent=`✅ REP ${reps} — PERFECT!`;
+            document.getElementById('feedback').innerHTML=`${mot}<br>💡 ${cfg.ok}`;
+        }else{
+            document.getElementById('formStatus').className='status good';
+            document.getElementById('formStatus').textContent=`✅ REP ${reps}`;
+            document.getElementById('feedback').innerHTML=`${mot}<br>💡 Next time: ${cfg.fix}`;
+        }
+    }
+}
+
+async function startCam(){
+    try{
+        stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:'user',width:800,height:600}});
+        cam.srcObject=stream;
+        cam.onloadedmetadata=()=>{startTimer();initAI();};
+    }catch(err){alert('Allow camera access');}
+}
+function startWorkout(){if(!exList.length)makeRandomWorkout();exIndex=0;showEx();nextPage(4);startCam();}
+
+document.addEventListener('DOMContentLoaded',()=>{
+    document.querySelectorAll('#goalGroup .btn').forEach(b=>b.onclick=()=>{document.querySelectorAll('#goalGroup .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');goal=b.dataset.val;});
+    document.querySelectorAll('#levelGroup .btn').forEach(b=>b.onclick=()=>{document.querySelectorAll('#levelGroup .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');level=b.dataset.val;});
+    document.querySelectorAll('#targetGroup .btn').forEach(b=>b.onclick=()=>{document.querySelectorAll('#targetGroup .btn').forEach(x=>x.classList.remove('active'));b.classList.add('active');target=b.dataset.val;});
+    document.getElementById('btnBody').onclick=()=>nextPage(2);
+    document.getElementById('btnCustom').onclick=()=>nextPage(3);
+    document.getElementById('btnBack1').onclick=()=>nextPage(1);
+    document.getElementById('btnBack2').onclick=()=>nextPage(1);
+    document.getElementById('btnBack3').onclick=()=>{if(stream)stream.getTracks().forEach(t=>t.stop());nextPage(1);};
+    document.getElementById('btnRandom').onclick=makeRandomWorkout;
+    document.getElementById('btnStart').onclick=startWorkout;
+    document.getElementById('btnAdd').onclick=addCustomEx;
+    document.getElementById('btnUseCustom').onclick=useCustomWorkout;
+    document.getElementById('btnPrev').onclick=prevEx;
+    document.getElementById('btnSkip').onclick=nextEx;
+});
+</script>
+</body>
+</html>
